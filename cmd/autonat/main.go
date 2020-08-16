@@ -16,6 +16,7 @@ var logger = log.Logger("autonat")
 func main() {
 	log.SetAllLoggers(log.LevelDebug)
 	_ = log.SetLogLevel("addrutil", "info")
+	_ = log.SetLogLevel("basichost", "info")
 
 	ctx := context.Background()
 
