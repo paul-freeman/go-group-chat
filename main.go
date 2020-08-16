@@ -19,6 +19,7 @@ var logger = log.Logger("group-chat")
 
 func main() {
 	log.SetAllLoggers(log.LevelDebug)
+	_ = log.SetLogLevel("addrutil", "info")
 
 	// check command line arguments
 	a := flag.String("autonat", "", "the P2P multiaddr of the autonat peer")
