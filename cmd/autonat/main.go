@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p"
@@ -43,7 +44,14 @@ func main() {
 		logger.Fatalf("could not subscribe to topic: %v", err)
 	}
 	defer cancel()
-	fmt.Println("I am an autonat service and I am ready to go!")
+	fmt.Printf("please wait 15 minutes for relay service...")
+	select {
+	case <-ctx.Done():
+		return
+	case <-time.After(15 * time.Minute):
+	}
+	fmt.Printf("done!")
+	fmt.Println("autonat service ready to go!")
 	fmt.Printf("/ip4/%v/tcp/%v/p2p/%v\n", os.Args[1], port, h.ID())
 	select {}
 }
