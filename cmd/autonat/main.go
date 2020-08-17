@@ -27,6 +27,6 @@ func main() {
 		panic(err)
 	}
 	fmt.Println("I am an autonat service and I am ready to go!")
-	fmt.Printf("/ip4/%v/tcp/%v/p2p/%v", os.Args[1], port, h.ID())
+	fmt.Printf("/ip4/%v/tcp/%v/p2p/%v\n", os.Args[1], port, h.ID())
 	select {}
 }
