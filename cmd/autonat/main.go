@@ -57,7 +57,7 @@ func main() {
 	logger.Infof("I am a service peer!")
 	for _, addr := range h.Addrs() {
 		if strings.Contains(addr.String(), *a) {
-			logger.Infof("Connect to me at: %v", addr)
+			logger.Infof("Connect to me at: %v/p2p/%v", addr, h.ID())
 		}
 	}
 	select {}
