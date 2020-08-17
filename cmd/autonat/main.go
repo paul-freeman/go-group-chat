@@ -5,12 +5,16 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p"
 	relay "github.com/libp2p/go-libp2p-circuit"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/routing"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
+	pubsub "github.com/libp2p/go-libp2p-pubsub"
 )
+
+var logger = log.Logger("autonat")
 
 const port = 33477
 
@@ -26,6 +30,19 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	p, err := pubsub.NewFloodSub(ctx, h)
+	if err != nil {
+		logger.Fatalf("could not start pubsub: %v", err)
+	}
+	t, err := p.Join("sylo-group-chat-demo")
+	if err != nil {
+		logger.Fatalf("could not join pubsub topic: %v", err)
+	}
+	cancel, err := t.Relay()
+	if err != nil {
+		logger.Fatalf("could not subscribe to topic: %v", err)
+	}
+	defer cancel()
 	fmt.Println("I am an autonat service and I am ready to go!")
 	fmt.Printf("/ip4/%v/tcp/%v/p2p/%v\n", os.Args[1], port, h.ID())
 	select {}
