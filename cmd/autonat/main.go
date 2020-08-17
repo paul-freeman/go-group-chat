@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/libp2p/go-libp2p"
 	relay "github.com/libp2p/go-libp2p-circuit"
@@ -26,6 +27,6 @@ func main() {
 		panic(err)
 	}
 	fmt.Println("I am an autonat service and I am ready to go!")
-	fmt.Printf("My peer ID is %v", h.ID())
+	fmt.Printf("/ip4/%v/tcp/%v/p2p/%v", os.Args[1], port, h.ID())
 	select {}
 }
