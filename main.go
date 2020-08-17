@@ -23,24 +23,25 @@ var logger = log.Logger("group-chat")
 
 func getBootstraps() []string {
 	return []string{
-		"/ip4/54.253.132.182/tcp/33477/p2p/QmNnewzuq8kPCovqpMZDEXPc4qFJctqn4ajLMG5a2nvt88",
-		"/ip4/52.62.79.81/tcp/33477/p2p/QmPMDkRrGzXZHZXBoNTiE4vjvHDXXoDxT8umnRJQLumWVi",
-		"/ip4/3.25.154.110/tcp/33477/p2p/QmNUXg8TfzVLc1spCLHZeAp9NUi2Gkjj4V3tiXjLonZLhW",
-		"/ip4/13.211.33.184/tcp/33477/p2p/QmWhoWPkG1WjSQMGeQ7Rtj2sKjRiyAsTZpX9sdFNWjzoDZ",
+		"/ip4/52.62.79.81/tcp/33477/p2p/QmeKXgbrZhsymfSnS6NEHd24WAwE9DLEEPoVZJmD4LSset",
+		"/ip4/13.211.33.184/tcp/33477/p2p/QmckF9nzR5152HtZveboBvEsZRqNJY6Dkr5vKpmmAjYRKe",
+		"/ip4/54.253.132.182/tcp/33477/p2p/QmbaZ4JPREUb7WxeU4CrbZDs6ZMBTLb1Yc1o4fYGjJvxPf",
+		"/ip4/3.25.154.110/tcp/33477/p2p/QmfEG3kx1rTa3oLEQrFMwT8D3kmPcfmRxJmRjtxChqGH9A",
 	}
 }
 
-const port = 33488
-
 func main() {
 	_ = log.SetLogLevel("group-chat", "info")
+	// log.SetAllLoggers(log.LevelDebug)
+	// _ = log.SetLogLevel("addrutil", "info")
+	// _ = log.SetLogLevel("basichost", "info")
 
 	log := messageLog{}
 	log.data = make(map[message]struct{})
 
 	ctx := context.Background()
 	h, err := libp2p.New(ctx,
-		libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/0.0.0.0/tcp/%v", port)),
+		libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0"),
 		libp2p.Routing(makeDhtRouting(ctx)),
 		libp2p.EnableNATService(),
 		libp2p.EnableAutoRelay(),
@@ -75,9 +76,40 @@ func main() {
 			log.Append(m)
 		}
 	}()
-	fmt.Println("Shout into the void and see what shouts back...")
+
+	// var p2pReady sync.WaitGroup
+	// p2pReady.Add(1)
+	// go func() {
+	// 	defer p2pReady.Done()
+	// 	for {
+	// 		time.Sleep(2 * time.Second)
+	// 		for _, a := range h.Addrs() {
+	// 			if strings.Contains(a.String(), "/p2p/") {
+	// 				fmt.Printf("%v/p2p/%v\n", a, peer.Encode(h.ID()))
+	// 				return
+	// 			}
+	// 		}
+	// 	}
+	// }()
+	// p2pReady.Wait()
+
+	fmt.Println("Shout into the void and see who shouts back...")
 	s := bufio.NewScanner(os.Stdin)
 	for s.Scan() {
+		// if strings.HasPrefix(s.Text(), "connect ") {
+		// 	addr, err := multiaddr.NewMultiaddr(strings.TrimPrefix(s.Text(), "connect "))
+		// 	if err != nil {
+		// 		panic(err)
+		// 	}
+		// 	info, err := peer.AddrInfoFromP2pAddr(addr)
+		// 	if err != nil {
+		// 		panic(err)
+		// 	}
+		// 	err = h.Connect(ctx, *info)
+		// 	if err != nil {
+		// 		panic(err)
+		// 	}
+		// }
 		m := message{
 			Clock: log.clock,
 			ID:    peer.Encode(h.ID()),

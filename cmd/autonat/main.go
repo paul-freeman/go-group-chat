@@ -29,7 +29,13 @@ func main() {
 		libp2p.EnableAutoRelay(),
 	)
 	if err != nil {
-		panic(err)
+		logger.Fatalf("could not start host: %v", err)
+	}
+	fmt.Printf("please wait for relay service to begin...")
+	select {
+	case <-ctx.Done():
+		return
+	case <-time.After(16 * time.Minute):
 	}
 	p, err := pubsub.NewFloodSub(ctx, h)
 	if err != nil {
@@ -39,18 +45,11 @@ func main() {
 	if err != nil {
 		logger.Fatalf("could not join pubsub topic: %v", err)
 	}
-	cancel, err := t.Relay()
+	_, err = t.Subscribe()
 	if err != nil {
 		logger.Fatalf("could not subscribe to topic: %v", err)
 	}
-	defer cancel()
-	fmt.Printf("please wait 15 minutes for relay service...")
-	select {
-	case <-ctx.Done():
-		return
-	case <-time.After(15 * time.Minute):
-	}
-	fmt.Printf("done!")
+	fmt.Printf("done!\n")
 	fmt.Println("autonat service ready to go!")
 	fmt.Printf("/ip4/%v/tcp/%v/p2p/%v\n", os.Args[1], port, h.ID())
 	select {}
