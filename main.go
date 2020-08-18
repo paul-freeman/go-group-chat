@@ -4,12 +4,16 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p"
+	relay "github.com/libp2p/go-libp2p-circuit"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/routing"
@@ -21,39 +25,48 @@ import (
 
 var logger = log.Logger("group-chat")
 
-func getBootstraps() []string {
-	return []string{
-		"/ip4/52.62.79.81/tcp/33477/p2p/QmeKXgbrZhsymfSnS6NEHd24WAwE9DLEEPoVZJmD4LSset",
-		"/ip4/13.211.33.184/tcp/33477/p2p/QmckF9nzR5152HtZveboBvEsZRqNJY6Dkr5vKpmmAjYRKe",
-		"/ip4/54.253.132.182/tcp/33477/p2p/QmbaZ4JPREUb7WxeU4CrbZDs6ZMBTLb1Yc1o4fYGjJvxPf",
-		"/ip4/3.25.154.110/tcp/33477/p2p/QmfEG3kx1rTa3oLEQrFMwT8D3kmPcfmRxJmRjtxChqGH9A",
-	}
-}
+const topic = "sylo-group-chat-demo"
 
 func main() {
-	_ = log.SetLogLevel("group-chat", "info")
-	// log.SetAllLoggers(log.LevelDebug)
-	// _ = log.SetLogLevel("addrutil", "info")
-	// _ = log.SetLogLevel("basichost", "info")
+	// some basic command-line arguments
+	var bs bootstraps
+	flag.Var(&bs, "bootstrap", "will connect to this `PEER` to bootstrap the network")
+	name := flag.String("nickname", "", "this `NAME` will be attached to your messages")
+	hop := flag.Bool("relay", false, "allows other peers to relay through this peer")
+	ro := flag.Bool("read-only", false, "disable input and just observe the chat")
+	ip := flag.String("ip", "", "public `IP` address (for relay peers)")
+	flag.Parse()
+	if *hop && *ip == "" {
+		logger.Fatal("a public ip address is required when starting as a relay")
+	}
 
+	// create a message log to prevent duplicate messages
 	log := messageLog{}
 	log.data = make(map[message]struct{})
 
+	// start libp2p host
 	ctx := context.Background()
+	enableRelay := libp2p.EnableRelay()
+	if *hop {
+		enableRelay = libp2p.EnableRelay(relay.OptHop)
+	}
 	h, err := libp2p.New(ctx,
 		libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0"),
 		libp2p.Routing(makeDhtRouting(ctx)),
 		libp2p.EnableNATService(),
+		enableRelay,
 		libp2p.EnableAutoRelay(),
 	)
 	if err != nil {
 		logger.Fatalf("could not start libp2p host: %v", err)
 	}
+
+	// start pubsub
 	p, err := pubsub.NewFloodSub(ctx, h)
 	if err != nil {
 		logger.Fatalf("could not start pubsub: %v", err)
 	}
-	t, err := p.Join("sylo-group-chat-demo")
+	t, err := p.Join(topic)
 	if err != nil {
 		logger.Fatalf("could not join pubsub topic: %v", err)
 	}
@@ -61,6 +74,8 @@ func main() {
 	if err != nil {
 		logger.Fatalf("could not subscribe to topic: %v", err)
 	}
+
+	// subscribe to the group
 	go func() {
 		for {
 			next, err := sub.Next(ctx)
@@ -77,42 +92,40 @@ func main() {
 		}
 	}()
 
-	// var p2pReady sync.WaitGroup
-	// p2pReady.Add(1)
-	// go func() {
-	// 	defer p2pReady.Done()
-	// 	for {
-	// 		time.Sleep(2 * time.Second)
-	// 		for _, a := range h.Addrs() {
-	// 			if strings.Contains(a.String(), "/p2p/") {
-	// 				fmt.Printf("%v/p2p/%v\n", a, peer.Encode(h.ID()))
-	// 				return
-	// 			}
-	// 		}
-	// 	}
-	// }()
-	// p2pReady.Wait()
+	// connect to bootstrap peers
+	for _, b := range bs {
+		if err := h.Connect(ctx, *b); err != nil {
+			logger.Errorf("could not connect to bootstrap node: %v", err)
+			continue
+		}
+	}
 
-	fmt.Println("Shout into the void and see who shouts back...")
+	// print welcome message
+	if *hop {
+		fmt.Println("relay peers must wait 15 minutes before use")
+		time.Sleep(15 * time.Minute)
+		fmt.Println("ready to go")
+		for _, a := range h.Addrs() {
+			if strings.Contains(a.String(), "127.0.0.1") {
+				fmt.Printf("%v/p2p/%v\n", strings.Replace(a.String(), "127.0.0.1", *ip, 1), h.ID())
+			}
+		}
+	}
+	fmt.Println("welcome to the chat!")
+
+	if *ro {
+		// read only
+		<-ctx.Done()
+		return
+	}
+
+	// send our messages
 	s := bufio.NewScanner(os.Stdin)
 	for s.Scan() {
-		// if strings.HasPrefix(s.Text(), "connect ") {
-		// 	addr, err := multiaddr.NewMultiaddr(strings.TrimPrefix(s.Text(), "connect "))
-		// 	if err != nil {
-		// 		panic(err)
-		// 	}
-		// 	info, err := peer.AddrInfoFromP2pAddr(addr)
-		// 	if err != nil {
-		// 		panic(err)
-		// 	}
-		// 	err = h.Connect(ctx, *info)
-		// 	if err != nil {
-		// 		panic(err)
-		// 	}
-		// }
 		m := message{
 			Clock: log.clock,
 			ID:    peer.Encode(h.ID()),
+			Name:  *name,
 			Text:  s.Text(),
 		}
 		b, err := json.Marshal(m)
@@ -134,6 +147,7 @@ func main() {
 type message struct {
 	Clock uint
 	ID    string
+	Name  string
 	Text  string
 }
 
@@ -147,9 +161,14 @@ func (log *messageLog) Append(m message) {
 	log.mu.Lock()
 	defer log.mu.Unlock()
 	if _, ok := log.data[m]; ok {
-		return // we already have this message
+		// we already have this message
+		return
 	}
-	logger.Infof("%s:\t%s", m.ID[len(m.ID)-6:len(m.ID)], m.Text)
+	name := m.Name
+	if name == "" {
+		name = m.ID[len(m.ID)-6 : len(m.ID)]
+	}
+	fmt.Printf("%s:\t%s\n", name, m.Text)
 	if m.Clock >= log.clock {
 		log.clock = m.Clock + 1
 	}
@@ -161,23 +180,29 @@ func makeDhtRouting(ctx context.Context) config.RoutingC {
 		if err != nil {
 			return nil, err
 		}
-		for _, bootstrap := range getBootstraps() {
-			addr, err := multiaddr.NewMultiaddr(bootstrap)
-			if err != nil {
-				logger.Errorf("could not convert string to addr: %v", err)
-				continue
-			}
-			info, err := peer.AddrInfoFromP2pAddr(addr)
-			if err != nil {
-				logger.Errorf("could not convert addr to p2p info: %v", err)
-				continue
-			}
-			err = h.Connect(ctx, *info)
-			if err != nil {
-				logger.Errorf("could not connect to bootstrap node: %v", err)
-				continue
-			}
-		}
 		return d, nil
 	}
+}
+
+type bootstraps []*peer.AddrInfo
+
+func (bs *bootstraps) String() string {
+	strs := make([]string, len(*bs))
+	for i, addr := range *bs {
+		strs[i] = addr.String()
+	}
+	return strings.Join(strs, ",")
+}
+
+func (bs *bootstraps) Set(str string) error {
+	addr, err := multiaddr.NewMultiaddr(str)
+	if err != nil {
+		return err
+	}
+	info, err := peer.AddrInfoFromP2pAddr(addr)
+	if err != nil {
+		return err
+	}
+	*bs = append(*bs, info)
+	return nil
 }
