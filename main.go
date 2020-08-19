@@ -80,6 +80,8 @@ func (bs *bootstraps) Set(str string) error {
 }
 
 func main() {
+	_ = log.SetLogLevel("group-chat", "info")
+
 	// parse command line arguments
 	var bs bootstraps
 	var name string
